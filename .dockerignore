@@ -1,0 +1,47 @@
+# 忽略所有文件
+*
+
+# 允许以下文件和目录
+!Dockerfile
+!requirements.txt
+!src/
+!main.py
+
+# 忽略虚拟环境目录
+venv/
+.env/
+.env*/
+
+# 忽略 Python 缓存文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 忽略日志文件
+*.log
+logs/
+
+# 忽略测试文件和目录
+tests/
+test/
+*.test.py
+
+# 忽略 IDE 配置文件
+.vscode/
+.idea/
+
+# 忽略 Git 相关文件
+.git/
+.gitignore
+
+# 忽略构建和打包相关文件
+dist/
+build/
+*.egg-info/
+
+# 忽略 macOS 系统文件
+.DS_Store
+
+# 忽略 Windows 系统文件
+Thumbs.db
