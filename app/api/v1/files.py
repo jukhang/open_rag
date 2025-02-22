@@ -36,6 +36,7 @@ import aiohttp
 from db.milvus import milvus_client
 from libs.llm import default_model
 from libs.utils import validate_kb_name
+from settings import settings
 
 from loguru import logger
 
@@ -74,7 +75,13 @@ def _save_files_in_thread(files: List[UploadFile], kb_name: str, override: bool)
 
 async def pdf2docs(kb_name: str, file_name: str) -> dict:
     file_path = get_file_path(kb_name=kb_name, doc_name=file_name)
-    url = "http://mineru_server:8000/pdf_parse?parse_method=auto&is_json_md_dump=true"
+    
+    url = f"http://{settings.MINERU_HOST}:{settings.MINERU_PORT}/pdf_parse"
+    
+    params = {
+        "parse_method": "auto",
+        "is_json_md_dump": "true"
+    }
     from aiohttp import FormData
     # 使用 FormData 构造符合 FastAPI 期望的文件上传格式
     data = FormData()
@@ -86,7 +93,7 @@ async def pdf2docs(kb_name: str, file_name: str) -> dict:
     )
     # 使用 aiohttp 发送异步请求
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=data) as response:
+        async with session.post(url, params=params, data=data) as response:
             if response.status == 200:
                 try:
                     contents = await response.json()
