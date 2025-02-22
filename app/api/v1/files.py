@@ -556,7 +556,7 @@ async def llm_chat(chat_info: ChatInfo) -> JSONResponse:
     for file_name, chunks in prompt_douments.items():
         quote.append({
             "file_name": file_name,
-            "url": f'files/{chat_info.kb_name}/{file_name}'
+            "url": f'http://{settings.APP_HOST}:{settings.APP_PORT}files/{chat_info.kb_name}/{file_name}'
         })
         background_knowledge += f"## {file_name}\n"
         for chunk in chunks:

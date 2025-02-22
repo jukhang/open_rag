@@ -21,8 +21,11 @@ DB_PATH = os.path.join(KB_ROOT_PATH, "info.db")
 class Settings(BaseSettings):
     SQLALCHEMY_DATABASE_URI: str = f"sqlite:///{DB_PATH}"
 
+    APP_HOST: str
+    APP_PORT: int = 9009
+
     MILVUS_HOST: str
-    MILVUS_PORT: str = "19530"
+    MILVUS_PORT: int = 19530
 
     XINFERENCE_HOST: str
     XINFERENCE_PORT: int = 9997
@@ -36,7 +39,7 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = ''
 
     MINERU_HOST: str = ""
-    MINERU_PORT: str = 8888
+    MINERU_PORT: int = 8888
 
 
     class Config:

@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
 
 from app.api.v1.files import generate_llm_model
+from settings import settings
+
 generate_llm_model()
 
 app = FastAPI()
@@ -22,4 +24,4 @@ app.include_router(api_router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9009)
+    uvicorn.run(app, host="0.0.0.0", port=settings.APP_PORT)
