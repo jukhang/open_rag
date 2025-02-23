@@ -2,14 +2,11 @@ import os
 import json
 import uuid
 import asyncio
-import requests
 from typing import List
 from pydantic import BaseModel
-from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form
 
 from libs.utils import run_in_thread_pool, get_file_path
 from db.milvus import milvus_client
@@ -23,16 +20,15 @@ from db.repository.knowledge_metadata_repository import (
     get_chunk_with_uuid, get_chunk_with_id, get_file_all_chunks
 )
 from db.repository.knowledge_metadata_repository import list_summary_from_db
-from db.repository.knowledge_file_repository import list_files_from_db, add_docs_to_db
+from db.repository.knowledge_file_repository import list_files_from_db
 from db.repository.knowledge_file_repository import delete_file_from_db
 from db.repository.knowledge_metadata_repository import delete_chunk_from_db
 from db.repository.knowledge_base_repository import delete_kb_from_db
 from db.repository.knowledge_file_repository import delete_files_from_db
-from db.repository.knowledge_metadata_repository import delete_summary_from_db, add_summary_to_db
+from db.repository.knowledge_metadata_repository import delete_summary_from_db
 from db.repository.knowledge_base_repository import add_kb_to_db
 from db.repository.knowledge_base_repository import list_kbs_from_db
 
-import aiohttp
 from db.milvus import milvus_client
 from libs.llm import default_model
 from libs.utils import validate_kb_name
@@ -73,146 +69,6 @@ def _save_files_in_thread(files: List[UploadFile], kb_name: str, override: bool)
         yield result
 
 
-async def pdf2docs(kb_name: str, file_name: str) -> dict:
-    file_path = get_file_path(kb_name=kb_name, doc_name=file_name)
-    
-    url = f"http://{settings.MINERU_HOST}:{settings.MINERU_PORT}/pdf_parse"
-    
-    params = {
-        "parse_method": "auto",
-        "is_json_md_dump": "true"
-    }
-    from aiohttp import FormData
-    # 使用 FormData 构造符合 FastAPI 期望的文件上传格式
-    data = FormData()
-    data.add_field(
-        name="pdf_file",
-        value=open(file_path, 'rb'),
-        filename=file_name,
-        content_type='application/pdf'
-    )
-    # 使用 aiohttp 发送异步请求
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, params=params, data=data) as response:
-            if response.status == 200:
-                try:
-                    contents = await response.json()
-                    text = ''
-                    for content in contents['content']:
-                        text += content.get('text', '')
-                        text += '\n\n'
-                    return {"file_name": file_name, "text": text}
-                except Exception as e:
-                    raise RuntimeError(f"解析文件{file_name}失败，报错信息为: {e}")
-            else:
-                response_text = await response.text()
-                raise RuntimeError(f"解析文件{file_name}失败，报错信息为: {response_text}")
-    
-async def doc2docs(kb_name: str, file_name: str) -> dict:
-    file_path = get_file_path(kb_name=kb_name, doc_name=file_name)
-    from docx.table import _Cell, Table
-    from docx.oxml.table import CT_Tbl
-    from docx.oxml.text.paragraph import CT_P
-    from docx.text.paragraph import Paragraph
-    from docx import Document
-
-    doc = Document(file_path)
-    text = ''
-
-    def iter_block_items(parent):
-        from docx.document import Document
-        if isinstance(parent, Document):
-            parent_elm = parent.element.body
-        elif isinstance(parent, _Cell):
-            parent_elm = parent._tc
-        else:
-            raise ValueError("DocParser parse fail")
-
-        for child in parent_elm.iterchildren():
-            if isinstance(child, CT_P):
-                yield Paragraph(child, parent)
-            elif isinstance(child, CT_Tbl):
-                yield Table(child, parent)
-
-    for i, block in enumerate(iter_block_items(doc)):
-        if isinstance(block, Paragraph):
-            text += block.text.strip() + "\n"
-        elif isinstance(block, Table):
-            for row in block.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        text += paragraph.text.strip() + "\n"
-
-    return {"file_name": file_name, "text": text}
-
-async def markdown2docs(kb_name: str, file_name: str) -> dict:
-    file_path = get_file_path(kb_name=kb_name, doc_name=file_name)
-    with open(file_path, 'r', encoding='utf-8') as f:
-        text = f.read()
-
-    return {"file_name": file_name, "text": text}
-
-async def parser_docs(kb_name: str, file_name: str):
-    if file_name.endswith('.pdf'):
-        return await pdf2docs(kb_name, file_name)
-    if file_name.endswith('.docx') or file_name.endswith('.doc'):
-        return await doc2docs(kb_name, file_name)
-    if file_name.endswith('.md') or file_name.endswith('.txt'):
-        return await markdown2docs(kb_name, file_name)
-
-
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50,
-    keep_separator=True,
-    is_separator_regex=True,
-    separators=["(?<=[。！？])"],
-)
-
-async def process_files(files: List[UploadFile], kb_name: str):
-
-    ocr_text = {}
-    milvus_rows = []
-    params = [{"file_name": file.filename, "kb_name": kb_name} for file in files]
-    # for result in run_in_thread_pool(parser_docs, params):
-    # 使用 asyncio.gather 并发执行异步任务
-    results = await asyncio.gather(*[parser_docs(kb_name, param["file_name"]) for param in params])
-
-    for result in results:
-        ocr_text[result["file_name"]] = []
-        chunks = text_splitter.split_text(result["text"])
-        add_docs_to_db(
-            kb_name=kb_name, 
-            file_name=result["file_name"], 
-            file_ext=result["file_name"].split('.')[-1],
-        )
-
-        for i, chunk in enumerate(chunks):
-            '''写入到milvus和sqlite中'''
-            ocr_text[result["file_name"]].append({"id": i, "chunk": chunk})
-            chunk_uuid = str(uuid.uuid4())
-            add_summary_to_db(
-                kb_name=kb_name,
-                file_name=result["file_name"],
-                chunk_id=i,
-                chunk=chunk,
-                chunk_uuid=chunk_uuid
-            )
-            vector = embedding_function([chunk])[0]
-
-            milvus_rows.append(
-                {
-                    "id": chunk_uuid,
-                    "kb_name": kb_name,
-                    "file_name": result["file_name"],
-                    "chunk": chunk,
-                    "vector": vector,
-                    "metadata": {},
-                }
-            )
-        milvus_client.insert('langchat', milvus_rows)
-
-
 @router.post("/init", summary="初始化接口")
 async def init() -> JSONResponse:
     try:
@@ -227,12 +83,14 @@ async def init() -> JSONResponse:
     except:
         return JSONResponse(dict(code=500, msg="数据库初始化失败", data={}))
 
+
+from app.tasks import celery_process_files
 @router.post("/upload", summary="批量上传文件接口")
 async def upload_files(
     files: List[UploadFile] = File(..., description="批量上传文件接口"),
     kb_name: str = Form("default", description="知识库名称", examples=[""]),
     override: bool = Form(True, description="覆盖已有文件"),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    # background_tasks: BackgroundTasks = BackgroundTasks(),
 ) -> JSONResponse:
     if not validate_kb_name(kb_name):
         return JSONResponse(dict(code=400, msg="知识库名称不合法", data=[]))
@@ -252,16 +110,41 @@ async def upload_files(
             failed_files[filename] = result["msg"]
 
     # 将文件解析任务放到后台执行
-    background_tasks.add_task(process_files, files, kb_name)
+    # background_tasks.add_task(process_files, files, kb_name)
+    task = celery_process_files.delay(success_files.keys(), kb_name)
 
     return JSONResponse(
         dict(
             code=200,
             msg="文件上传成功，正在后台解析",
-            data=dict(kb_name=kb_name, files=success_files, failed_files=failed_files),
+            data=dict(
+                kb_name=kb_name, 
+                files=success_files, 
+                failed_files=failed_files,
+                task_id=task.id,
+            ),
         )
     )
 
+
+@router.get("/task", summary="获取任务状态接口")
+async def get_task_status(task_id: str) -> JSONResponse:
+    task = celery_process_files.AsyncResult(task_id)
+    if task.state == "SUCCESS":
+        return JSONResponse(
+            dict(
+                code=200,
+                msg="success",
+                data=dict(task_id=task_id, status=task.result),
+            )
+        )
+    return JSONResponse(
+        dict(
+            code=200,
+            msg="success",
+            data=dict(task_id=task_id, status=task.status),
+        )
+    )
 
 class KnowledgeBaseInfo(BaseModel):
     kb_name: str

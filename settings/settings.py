@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     MINERU_HOST: str = ""
     MINERU_PORT: int = 8888
 
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
 
     class Config:
         env_prefix = ""

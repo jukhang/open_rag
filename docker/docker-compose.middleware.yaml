@@ -17,6 +17,19 @@ services:
     environment:
       ENV_MODE: "production"
     command: python startup.py
+  cerely_app:
+    image: langchat:latest 
+    container_name: celery_app
+    volumes:
+      - ../:/workspace               
+      - /etc/localtime:/etc/localtime:ro
+    working_dir: /workspace
+    restart: always
+    networks:
+      - langchat_network
+    command: celery -A celery_app worker --loglevel=info
+    depends_on:
+      - redis
   # mineru_server:
   #   image: quincyqiang/mineru:0.1-models
   #   container_name: mineru_server
@@ -85,7 +98,25 @@ services:
       retries: 3
       start_period: 90s
     restart: always
-
+  redis:
+    image: redis:6-alpine
+    container_name: redis
+    restart: always
+    networks:
+      - langchat_network
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./volumes/redis:/data
+      - /etc/localtime:/etc/localtime:ro
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 90s
+      
 networks:
   langchat_network:
     driver: bridge

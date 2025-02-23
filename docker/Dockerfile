@@ -9,4 +9,6 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r re
 
 RUN rm requirements.txt
 
+ENV PYTHONPATH=/workspace
+
 CMD ["tail", "-f", "/dev/null"]
