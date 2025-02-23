@@ -252,17 +252,25 @@ async def get_knowledge_base(kb_name: str, file_name: str) -> JSONResponse:
         )
     )
 
+from enum import Enum
+
+class ChatType(Enum):
+    chat = "chat"
+    rag_chat = "rag_chat"
+
 
 class ConversationInfo(BaseModel):
-    chat_type: str = "chat"
+    chat_type: ChatType = ChatType.chat
     name: str = "新会话"
+
 
 @router.post("/conversation", summary="创建会话接口")
 async def create_conversation(conversation_info: ConversationInfo) -> JSONResponse:
     '''创建新的会话'''
     conversation_id = str(uuid.uuid4())
+    # chat_type = 
     add_conversation_to_db(
-        chat_type=conversation_info.chat_type,
+        chat_type=str(conversation_info.chat_type),
         name=conversation_info.name,
         conversation_id=conversation_id
     )
