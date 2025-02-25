@@ -1,7 +1,7 @@
 # docker volumes
 docker/volumes
 knowledge_base/
-
+.DS_Store
 *_bak/
 
 # Byte-compiled / optimized / DLL files
