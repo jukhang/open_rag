@@ -118,8 +118,8 @@ async def upload_files(
             code=200,
             msg="文件上传成功，正在后台解析",
             data=dict(
-                kb_name=kb_name, 
-                files=success_files, 
+                kb_name=kb_name,
+                files=success_files,
                 failed_files=failed_files,
                 task_id=task.id,
             ),
@@ -154,7 +154,7 @@ class KnowledgeBaseInfo(BaseModel):
 async def create_knowledge_base(kb_info: KnowledgeBaseInfo) -> JSONResponse:
     if not validate_kb_name(kb_info.kb_name):
         return JSONResponse(dict(code=400, msg="知识库名称不合法", data=[]))
-    
+
     knowledge_base = f"knowledge_base/{kb_info.kb_name}"
     os.makedirs(knowledge_base, exist_ok=True)
 
@@ -239,7 +239,7 @@ async def get_knowledge_base(kb_name: str) -> JSONResponse:
 @router.get("/chunk", summary="获取知识库所有文件列表接口")
 async def get_knowledge_base(kb_name: str, file_name: str) -> JSONResponse:
     kbs = list_summary_from_db(kb_name=kb_name, file_name=file_name)
-    
+
     return JSONResponse(
         dict(
             code=200,
@@ -268,7 +268,7 @@ class ConversationInfo(BaseModel):
 async def create_conversation(conversation_info: ConversationInfo) -> JSONResponse:
     '''创建新的会话'''
     conversation_id = str(uuid.uuid4())
-    # chat_type = 
+    # chat_type =
     add_conversation_to_db(
         chat_type=str(conversation_info.chat_type),
         name=conversation_info.name,
@@ -379,7 +379,7 @@ def generate_llm_model():
             base_url=llm_config.get("base_url")
         )
         model_cache[llm_config.get("model_name")] = model
-    
+
 
 class ChatInfo(BaseModel):
     question: str
@@ -399,7 +399,7 @@ async def llm_chat(chat_info: ChatInfo) -> JSONResponse:
             chat_type = 'rag_chat'
 
         add_conversation_to_db(chat_type=chat_type, name=name, conversation_id=conversation_id)
-    
+
     documents = {}
     document_chunks_id = {}
     prompt_douments = {}
@@ -424,7 +424,7 @@ async def llm_chat(chat_info: ChatInfo) -> JSONResponse:
             if next_chunk is not None:
                 documents[f"{next_chunk['id']}-{next_chunk['file_name']}"] = next_chunk
                 document_chunks_id.setdefault(next_chunk['file_name'], []).append(next_chunk['id'])
-        
+
         for file_name, chunk_ids in document_chunks_id.items():
             for chunk_id in sorted(set(chunk_ids)):
                 prompt_douments.setdefault(
@@ -441,19 +441,19 @@ async def llm_chat(chat_info: ChatInfo) -> JSONResponse:
         chunks = get_file_all_chunks(kb_name=chat_info.kb_name, file_name=chat_info.file_name)
 
         prompt_douments[chat_info.file_name] = chunks
-    
+
     quote = []
     background_knowledge = ''
     for file_name, chunks in prompt_douments.items():
         quote.append({
             "file_name": file_name,
-            "url": f'http://{settings.APP_HOST}:{settings.APP_PORT}files/{chat_info.kb_name}/{file_name}'
+            "url": f'http://{settings.APP_HOST}:{settings.APP_PORT}/files/{chat_info.kb_name}/{file_name}'
         })
         background_knowledge += f"## {file_name}\n"
         for chunk in chunks:
             background_knowledge += f"{chunk['chunk']}\n"
         background_knowledge += '\n'
-    
+
     if background_knowledge == '':
         system_prompt = '你是一个智能助手，请用简练的语言回答用户的问题'
         question = chat_info.question
@@ -474,12 +474,12 @@ async def llm_chat(chat_info: ChatInfo) -> JSONResponse:
             answer += delta_content["content"]
             yield json.dumps(delta_content, ensure_ascii=False)
             await asyncio.sleep(0)
-        
+
         _id = add_message_to_db(conversation_id=chat_info.conversation_id, chat_type='chat', query=chat_info.question,response=answer)
 
         if quote:
             yield json.dumps(quote, ensure_ascii=False)
-        
-        
-            
+
+
+
     return EventSourceResponse(sse_stream())

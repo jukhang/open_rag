@@ -30,27 +30,26 @@ services:
     command: celery -A celery_app worker --loglevel=info
     depends_on:
       - redis
-  # mineru_server:
-  #   image: quincyqiang/mineru:0.1-models
-  #   container_name: mineru_server
-  #   restart: always
-  #   networks:
-  #     - langchat_network
-  #   ports:
-  #     - "8888:8000"
-  #   volumes:
-  #     - $HOME/.xinference:/root/.xinference
-  #     - $HOME/.cache/huggingface:/root/.cache/huggingface
-  #     - $HOME/.cache/modelscope:/root/.cache/modelscope
-  #     - /etc/localtime:/etc/localtime:ro 
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - capabilities: [gpu]
+  mineru_server:
+    image: quincyqiang/mineru:0.1-models
+    container_name: mineru_server
+    restart: always
+    networks:
+      - langchat_network
+    ports:
+      - "8888:8000"
+    volumes:
+      - $HOME/.xinference:/root/.xinference
+      - $HOME/.cache/huggingface:/root/.cache/huggingface
+      - $HOME/.cache/modelscope:/root/.cache/modelscope
+      - /etc/localtime:/etc/localtime:ro 
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
   xinference:
-    # image: registry.cn-hangzhou.aliyuncs.com/xprobe_xinference/xinference:latest
-    image: xprobe/xinference:latest-cpu
+    image: registry.cn-hangzhou.aliyuncs.com/xprobe_xinference/xinference:latest
     container_name: xinference
     restart: always
     networks:
@@ -64,11 +63,11 @@ services:
       - /etc/localtime:/etc/localtime:ro 
     environment:
       - HF_ENDPOINT=https://hf-mirror.com
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
     command: xinference-local -H 0.0.0.0
   milvus:
     image: milvusdb/milvus:v2.4.1
